@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class InitApp {
@@ -22,7 +23,7 @@ public class InitApp {
     private static String input(String mensagem) {
         do {
             try {
-                 return JOptionPane.showInputDialog(null, mensagem);
+                return JOptionPane.showInputDialog(null, mensagem);
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(null, "Ocorreu um erro, tente novamente");
             }
@@ -44,7 +45,6 @@ public class InitApp {
     private static void adicionarItem() {
         Equipamento equipamentoSelecionado = inputDeSelecao();
         int tempoMedio = Integer.parseInt(input("Qual o tempo médio de uso (em min)?"));
-
         ITENS_SELECIONADOS.add(new UsoDoEquipamento(equipamentoSelecionado, tempoMedio));
     }
 
@@ -69,7 +69,7 @@ public class InitApp {
     private static void calcular() {
         int meta = Integer.parseInt(input("Qual o valor máximo que deseja pagar?"));
         AlgoritmoGenetico algoritmo = new AlgoritmoGenetico(ITENS_SELECIONADOS, meta);
-        algoritmo.executar();
+        JOptionPane.showMessageDialog(null, algoritmo.executar());
     }
 
     public static void main(String[] args) {

@@ -1,168 +1,193 @@
 package gastoenergia;
 
-import java.util.Arrays;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.stream.DoubleStream;
-import java.util.stream.IntStream;
 
 public class AlgoritmoGenetico {
-    
-    private static final Random RANDOM = new Random();
-    private static final int CAPACIDADE_MOCHILA = 22;
-    private static final int TAMANHO_POPULACAO = 7;
-    private static final int NUMERO_GERACOES = 1000;
-    private static final double TAXA_MUTACAO = 0.1;
-    private static final int PENALIDADE_EXCESSO = 100;
-    private static final int TEMPO_MINIMO_CHUVEIRO = 5;
     private final List<UsoDoEquipamento> equipamentos;
-    private final double meta;
+    private final double metaDeConsumo;
+    private static final int NUM_GERACOES = 1000;
+    private static final int TAMANHO_POPULACAO = 100;
+    private static final int TEMPO_MINIMO_CHUVEIRO = 5;
+    private static final int NUMERO_ELITES = 2;
 
-    public AlgoritmoGenetico(List<UsoDoEquipamento> equipamentos, double meta) {
+    public AlgoritmoGenetico(List<UsoDoEquipamento> equipamentos, double metaDeConsumo) {
         this.equipamentos = equipamentos;
-        this.meta = meta;
+        this.metaDeConsumo = metaDeConsumo;
     }
-    
-    private int[] calcularBeneficioDoPeso(int[] cromossomo) {
-        int beneficioTotal = 0;
-        int pesoTotal = 0;
 
-        for (int i = 0; i < cromossomo.length; i++) {
-            if (cromossomo[i] == 1) {
-//                beneficioTotal += equipamentos[i].beneficio();
-//                pesoTotal += equipamentos[i].peso();
+    public String executar() {
+        List<int[]> populacao = inicializarPopulacao();
+
+        for (int geracao = 0; geracao < NUM_GERACOES; geracao++) {
+            // Encontra os melhores indivíduos (elites) antes de fazer crossover e mutação
+            List<int[]> elites = encontrarMelhoresSolucao(populacao);
+
+            List<int[]> novaPopulacao = new ArrayList<>(elites); // Adiciona as elites diretamente à nova população
+
+            // Preenche o restante da nova população
+            while (novaPopulacao.size() < TAMANHO_POPULACAO) {
+                int[] pai1 = selecionar(populacao);
+                int[] pai2 = selecionar(populacao);
+
+                int[] filho = crossover(pai1, pai2);
+                mutacao(filho);
+
+                if (validar(filho)) {
+                    novaPopulacao.add(filho);
+                }
             }
+
+            populacao = novaPopulacao; // Atualiza a população com a nova geração
         }
 
-        if (pesoTotal > CAPACIDADE_MOCHILA) beneficioTotal -= PENALIDADE_EXCESSO; // Penaliza se exceder a capacidade;
+        int[] melhorSolucao = encontrarMelhorSolucao(populacao);
 
-        return new int[]{ beneficioTotal, pesoTotal };
-    }
-
-    private int[][] selecionarPais(int[][] populacao) {
-        int[] beneficios = Arrays.stream(populacao)
-                .mapToInt(cromossomo -> calcularBeneficioDoPeso(cromossomo)[0])
-                .toArray();
-
-        int beneficioTotal = IntStream.of(beneficios).sum();
-        double[] probabilidades = IntStream.of(beneficios)
-                .mapToDouble(b -> (double) b /beneficioTotal).toArray();
-
-        int[] pai1 = opcaoAleatoriaComPesos(populacao, probabilidades);
-        int[] pai2 = opcaoAleatoriaComPesos(populacao, probabilidades);
-
-        return new int[][]{ pai1, pai2 };
-    }
-
-    private int[] opcaoAleatoriaComPesos(int[][] populacao, double[] pesos) {
-
-        // Calcula o peso total dos pesos
-        double pesoTotal = DoubleStream.of(pesos).sum();
-
-        // Gera um número aleatório entre 0 e o peso total
-        double valorAleatorio = RANDOM.nextDouble(pesoTotal);
-
-        // Acha o elemento correspondente na população
-        double pesoAcumulativo = 0;
-        for (int i = 0; i < populacao.length; i++) {
-            pesoAcumulativo += pesos[i];
-            if (valorAleatorio <= pesoAcumulativo) {
-                return populacao[i];
-            }
+        StringBuilder solucao = new StringBuilder();
+        for (int i = 0; i < melhorSolucao.length; i++) {
+            solucao.append(equipamentos.get(i).getEquipamento().getNome()).append(": ").append(melhorSolucao[i]).append(" minutos");
         }
-
-        return populacao[populacao.length - 1];
+        return solucao.toString();
     }
 
-    private int[] concatenarArrays(int[] arr1, int[] arr2) {
-        int[] resultado = Arrays.copyOf(arr1, arr1.length + arr2.length);
-        System.arraycopy(arr2, 0, resultado, arr1.length, arr2.length);
-        return resultado;
-    }
+    private List<int[]> inicializarPopulacao() {
+        Random random = new Random();
+        List<int[]> populacao = new ArrayList<>();
 
-    private int[][] cruzar(int[] pai1, int[] pai2) {
-        int pontoDeCorte = RANDOM.nextInt(1, pai1.length);
-        int[] filho1 = concatenarArrays(
-                Arrays.copyOfRange(pai1, 0, pontoDeCorte),
-                Arrays.copyOfRange(pai2, pontoDeCorte, pai2.length));
-
-        int[] filho2 = concatenarArrays(
-                Arrays.copyOfRange(pai2, 0, pontoDeCorte),
-                Arrays.copyOfRange(pai1, pontoDeCorte, pai1.length));
-
-        return new int[][]{ filho1, filho2 };
-    }
-
-    private void mutar(int[] cromossomo) {
-        for (int i = 0; i < cromossomo.length; i++) {
-            if (Math.random() < TAXA_MUTACAO) {
-                cromossomo[i] = 1 - cromossomo[i]; // Inverte o bit;
-            }
-        }
-    }
-
-    private boolean populacaoNaoContemFilho(int[][] populacao, int[] filho) {
-        for (int[] cromossomo : populacao) {
-            boolean a = Arrays.equals(cromossomo, filho);
-            System.out.println(a);
-            if (a) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public void executar() {
-        int[][] populacao = new int[TAMANHO_POPULACAO][equipamentos.size()];
         for (int i = 0; i < TAMANHO_POPULACAO; i++) {
-            int[] cromossomo = equipamentos.stream()
-                    .mapToInt(it -> RANDOM.nextInt(2)).toArray();
-            populacao[i] = cromossomo;
-        }
+            int[] cromossomo = new int[equipamentos.size()];
 
-        for (int i = 0; i < NUMERO_GERACOES; i++) {
-            int[][] novaPopulacao = new int[TAMANHO_POPULACAO][equipamentos.size()];
-            // Elitismo: mantém o melhor indivíduo da geração anterior
-            int[] melhorIndividuo = Arrays.stream(populacao)
-                    .max(Comparator.comparingInt(cromossomo -> calcularBeneficioDoPeso(cromossomo)[0]))
-                    .orElse(populacao[populacao.length - 1]);
-            novaPopulacao[0] = melhorIndividuo;
-
-            int j = 0;
-            while (j < TAMANHO_POPULACAO - 1) {
-                int[][] pais = selecionarPais(populacao);
-                int[] pai1 = pais[0];
-                int[] pai2 = pais[1];
-                int[][] cria = cruzar(pai1, pai2);
-                int[] filho1 = cria[0];
-                int[] filho2 = cria[1];
-                mutar(filho1);
-                mutar(filho2);
-                // Adiciona apenas se não for duplicado
-                if (populacaoNaoContemFilho(novaPopulacao, filho1)) {
-                    novaPopulacao[++j] = filho1;
-                }
-                if (j < TAMANHO_POPULACAO - 1 && populacaoNaoContemFilho(novaPopulacao, filho2)) {
-                    novaPopulacao[++j] = filho2;
+            for (int j = 0; j < equipamentos.size(); j++) {
+                if (equipamentos.get(j).getEquipamento().isEssencial()) {
+                    cromossomo[j] = equipamentos.get(j).getTempoDeUso(); // Mantém o tempo de uso original
+                } else {
+                    cromossomo[j] = random.nextInt(equipamentos.get(j).getTempoDeUso() + 1); // Valor aleatório
+                    if (equipamentos.get(j).getEquipamento().equals(Equipamento.CHUVEIRO_ELETRICO)) {
+                        cromossomo[j] = Math.max(TEMPO_MINIMO_CHUVEIRO, cromossomo[j]); // Impõe mínimo
+                    }
                 }
             }
-            populacao = novaPopulacao;
+
+            populacao.add(cromossomo);
         }
-        int[] melhorSolucao = Arrays.stream(populacao)
-                .max(Comparator.comparingInt(cromossomo -> calcularBeneficioDoPeso(cromossomo)[0]))
-                .orElse(populacao[populacao.length - 1]);
 
-        int[] calculo = calcularBeneficioDoPeso(melhorSolucao);
-        int beneficio = calculo[0];
-        int peso = calculo[1];
-
-        System.out.println("Melhor solução: ");
-        System.out.println("Cromossomo: " + Arrays.stream(melhorSolucao)
-                        .mapToObj(String::valueOf)
-                        .collect(Collectors.joining(", ")));
-        System.out.println("Beneficio: " + beneficio);
-        System.out.println("Peso: " + peso);
+        return populacao;
     }
+
+    private List<int[]> encontrarMelhoresSolucao(List<int[]> populacao) {
+        List<Double> fitness = calcularFitness(populacao);
+        List<int[]> elites = new ArrayList<>();
+
+        // Itera para encontrar o número de elites solicitado
+        for (int e = 0; e < NUMERO_ELITES; e++) {
+            double melhorFitness = fitness.get(0);
+            int indiceMelhor = 0;
+
+            // Encontrar o melhor indivíduo
+            for (int i = 1; i < fitness.size(); i++) {
+                if (fitness.get(i) > melhorFitness) {
+                    melhorFitness = fitness.get(i);
+                    indiceMelhor = i;
+                }
+            }
+
+            // Adiciona o melhor indivíduo à lista de elites
+            elites.add(populacao.get(indiceMelhor));
+
+            // Remove o melhor fitness encontrado para evitar selecioná-lo de novo
+            fitness.set(indiceMelhor, Double.NEGATIVE_INFINITY);
+        }
+
+        return elites;
+    }
+
+    private int[] selecionar(List<int[]> populacao) {
+        List<Double> fitness = calcularFitness(populacao);
+        return selecionarPorRoleta(populacao, fitness);
+    }
+
+    private int[] selecionarPorRoleta(List<int[]> populacao, List<Double> fitness) {
+        double somaFitness = 0;
+        for (double fit : fitness) {
+            somaFitness += fit;
+        }
+
+        Random random = new Random();
+        double valorSorteado = random.nextDouble() * somaFitness;
+
+        double acumulado = 0;
+        for (int i = 0; i < populacao.size(); i++) {
+            acumulado += fitness.get(i);
+            if (acumulado >= valorSorteado) {
+                return populacao.get(i);
+            }
+        }
+
+        return populacao.get(populacao.size() - 1);
+    }
+
+    // Função de fitness: quanto menor a diferença do consumo total em relação à meta, melhor o fitness
+    private List<Double> calcularFitness(List<int[]> populacao) {
+        List<Double> fitness = new ArrayList<>();
+
+        for (int[] cromossomo : populacao) {
+            double consumoTotal = 0;
+
+            for (int i = 0; i < cromossomo.length; i++) {
+                consumoTotal += cromossomo[i] * equipamentos.get(i).getEquipamento().getPotenciaMediaEmWatts() / 60.0 / 1000;
+            }
+
+            double diferencaConsumo = Math.abs(metaDeConsumo - consumoTotal);
+
+            // Quanto menor a diferença, maior o fitness
+            fitness.add(1 / (diferencaConsumo + 1)); // Adiciona 1 para evitar divisão por zero
+        }
+
+        return fitness;
+    }
+
+    private int[] crossover(int[] pai1, int[] pai2) {
+        Random random = new Random();
+        int pontoDeCorte = random.nextInt(pai1.length);
+        int[] filho = new int[pai1.length];
+
+        for (int i = 0; i < pai1.length; i++) {
+            filho[i] = i < pontoDeCorte ? pai1[i] : pai2[i];
+        }
+
+        return filho;
+    }
+
+    private void mutacao(int[] cromossomo) {
+        Random random = new Random();
+        int index = random.nextInt(cromossomo.length);
+        cromossomo[index] += random.nextInt(10) - 5; // Pequena mutação
+    }
+
+    private boolean validar(int[] cromossomo) {
+        double consumoTotal = 0;
+
+        for (int i = 0; i < cromossomo.length; i++) {
+            consumoTotal += cromossomo[i] * equipamentos.get(i).getEquipamento().getPotenciaMediaEmWatts() / 60.0 / 1000;
+        }
+
+        return consumoTotal <= metaDeConsumo;
+    }
+
+    private int[] encontrarMelhorSolucao(List<int[]> populacao) {
+        List<Double> fitness = calcularFitness(populacao);
+        double melhorFitness = fitness.get(0);
+        int indiceMelhor = 0;
+
+        for (int i = 1; i < fitness.size(); i++) {
+            if (fitness.get(i) > melhorFitness) {
+                melhorFitness = fitness.get(i);
+                indiceMelhor = i;
+            }
+        }
+
+        return populacao.get(indiceMelhor);
+    }
+
 }
